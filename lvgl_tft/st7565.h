@@ -30,7 +30,7 @@ extern "C" {
 #define ST7565_HOR_RES  128 //CONFIG_LV_HOR_RES_MAX - not defined in LVGL v8
 #define ST7565_VER_RES  64  //CONFIG_LV_VER_RES_MAX - not defined in LVGL v8
 
-#define ST7565_INVERT_COLORS CONFIG_LV_INVERT_COLORS
+#define ST7565_INVERT_COLORS 0  // Don't invert display colors
 
 // ST7565 specific commands used in init
 #define ST7565_DISPLAY_OFF            0xAE
@@ -70,7 +70,7 @@ extern "C" {
 #define ST7565_TEST                   0xF0
 
 //TEMP
-#define DISP_COL_OFFSET                 0x3 // Shift start of columns by this amount
+#define DISP_COL_OFFSET                 0x4 // Shift start of columns by this amount
 
 #define DISP_BL_PWM_PIN     34
 
@@ -90,10 +90,12 @@ extern "C" {
 /**********************
  * GLOBAL PROTOTYPES
  **********************/
-
 void st7565_init(void);
-void st7565_flush(lv_disp_drv_t * drv, const lv_area_t * area, lv_color_t * color_map);
-void st7565_enable_backlight(bool backlight);
+void st7565_flush(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_color_t * color_p);
+void st7565_rounder(lv_disp_drv_t * disp_drv, lv_area_t *area);
+void st7565_set_px_cb(lv_disp_drv_t * disp_drv, uint8_t * buf, lv_coord_t buf_w, lv_coord_t x, lv_coord_t y,
+    lv_color_t color, lv_opa_t opa);
+
 void st7565_sleep_in(void);
 void st7565_sleep_out(void);
 

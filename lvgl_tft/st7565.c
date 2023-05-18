@@ -35,7 +35,12 @@ typedef struct {
  **********************/
 static void st7565_send_cmd(uint8_t cmd);
 static void st7565_send_data(void * data, uint16_t length);
+static void st7565_send_color(void * data, uint16_t length);
+static void st7565_reset(void);
 static void st7565_sync(int32_t x1, int32_t y1, int32_t x2, int32_t y2);
+
+static lv_coord_t get_display_ver_res(lv_disp_drv_t *disp_drv);
+static lv_coord_t get_display_hor_res(lv_disp_drv_t *disp_drv);
 
 /**********************
  *  STATIC VARIABLES
@@ -68,13 +73,13 @@ void st7565_init(void)
 		{ST7565_SET_POWER_CONTROL | 0x06, {0}, 0x80},   // Turn on voltage regulator (VC=1, VR=1, VF=0)
 		{ST7565_SET_POWER_CONTROL | 0x07, {0}, 0x80},   // Turn on voltage follower (VC=1, VR=1, VF=1)
 #if ST7565_INVERT_COLORS == 1
-		{ST7565_SET_RESISTOR_RATIO | 0x05, {0}, 0x00},  // Set lcd operating voltage (regulator resistor, ref voltage resistor); RR = 5.5
-		{ST7565_SET_VOLUME_FIRST, {0}, 0x00},     
-		{ST7565_SET_VOLUME_SECOND | 0x17, {0}, 0x00},   // Set the contrast; EV = 23 = 0x17
-#else
 		{ST7565_SET_RESISTOR_RATIO | 0x06, {0}, 0x00},  // Set lcd operating voltage (regulator resistor, ref voltage resistor); RR = 6.0
 		{ST7565_SET_VOLUME_FIRST, {0}, 0x00},     
 		{ST7565_SET_VOLUME_SECOND | 0x18, {0}, 0x00},   // Set the contrast; EV = 24 = 0x18
+#else
+		{ST7565_SET_RESISTOR_RATIO | 0x05, {0}, 0x00},  // Set lcd operating voltage (regulator resistor, ref voltage resistor); RR = 5.5
+		{ST7565_SET_VOLUME_FIRST, {0}, 0x00},     
+		{ST7565_SET_VOLUME_SECOND | 0x17, {0}, 0x00},   // Set the contrast; EV = 23 = 0x17
 #endif
 		{ST7565_DISPLAY_ON, {0x00}, 0x00},              // Turn on display   
 		{ST7565_SET_ALLPTS_NORMAL, {0}, 0x00},          // Reset all pixels  
@@ -109,10 +114,7 @@ void st7565_init(void)
 	gpio_set_direction(ST7565_RST, GPIO_MODE_OUTPUT);
 
 	// Reset the display
-	gpio_set_level(ST7565_RST, 0);
-	vTaskDelay(100 / portTICK_PERIOD_MS);
-	gpio_set_level(ST7565_RST, 1);
-	vTaskDelay(100 / portTICK_PERIOD_MS);
+    st7565_reset();
 
 	ESP_LOGI(TAG, "ST7565 initialization.");
 
@@ -139,7 +141,7 @@ void st7565_init(void)
     memset(lcd_fb, 0x00, sizeof(lcd_fb));
 }
 
-void st7565_flush(lv_disp_drv_t * drv, const lv_area_t * area, lv_color_t * color_map)
+void st7565_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
 {
     // Return if the area is out the screen
     if (area->x2 < 0) return;
@@ -170,16 +172,20 @@ void st7565_flush(lv_disp_drv_t * drv, const lv_area_t * area, lv_color_t * colo
     st7565_sync(act_x1, act_y1, act_x2, act_y2);
 }
 
-void st7565_enable_backlight(bool backlight) {
-
-    uint32_t pwm_duty = (backlight ? 100 : 0);  // TEMP: Set to 0% or 100%
-
-    // Set duty to given value
-    ESP_ERROR_CHECK(ledc_set_duty(DISP_BL_LEDC_MODE, DISP_BL_LEDC_CHANNEL, DUTY_TO_LEDC_VALUE(pwm_duty)));
-
-    // Update duty to apply the new value
-    ESP_ERROR_CHECK(ledc_update_duty(DISP_BL_LEDC_MODE, DISP_BL_LEDC_CHANNEL));
+void st7565_rounder(lv_disp_drv_t * disp_drv, lv_area_t *area) {
+    // workaround: always send complete size display buffer
+    area->x1 = 0;
+    area->y1 = 0;
+    area->x2 = get_display_hor_res(disp_drv) - 1;
+    area->y2 = get_display_ver_res(disp_drv) - 1;
 }
+
+void st7565_set_px_cb(lv_disp_drv_t * disp_drv, uint8_t * buf, lv_coord_t buf_w, lv_coord_t x, lv_coord_t y,
+    lv_color_t color, lv_opa_t opa) {
+
+    // Do nothing for 
+}
+
 
 void st7565_sleep_in()
 {
@@ -199,16 +205,74 @@ void st7565_sleep_out()
 
 static void st7565_send_cmd(uint8_t cmd)
 {
-	disp_wait_for_pending_transactions();
-	gpio_set_level(ST7565_DC, 0);   // Command mode
-	disp_spi_send_data(&cmd, 1);
+    disp_wait_for_pending_transactions();
+    gpio_set_level(ST7565_DC, 0);	 /*Command mode*/
+    disp_spi_send_data(&cmd, 1);
 }
 
 static void st7565_send_data(void * data, uint16_t length)
 {
-	disp_wait_for_pending_transactions();
-	gpio_set_level(ST7565_DC, 1);   // Data mode
-	disp_spi_send_data(data, length);
+    disp_wait_for_pending_transactions();
+    gpio_set_level(ST7565_DC, 1);	 /*Data mode*/
+    disp_spi_send_data(data, length);
+}
+
+static void st7565_send_color(void * data, uint16_t length)
+{
+    disp_wait_for_pending_transactions();
+    gpio_set_level(ST7565_DC, 1);   /*Data mode*/
+    disp_spi_send_colors(data, length);
+}
+
+static lv_coord_t get_display_ver_res(lv_disp_drv_t *disp_drv)
+{
+#if 0
+    lv_coord_t val = 0;
+
+#if LVGL_VERSION_MAJOR < 8
+#if defined CONFIG_LV_DISPLAY_ORIENTATION_LANDSCAPE
+    val = LV_VER_RES_MAX;
+#endif
+#else
+    /* ToDo Use display rotation API to get vertical size */
+#if defined CONFIG_LV_DISPLAY_ORIENTATION_LANDSCAPE
+    val = lv_disp_get_ver_res((lv_disp_t *) disp_drv);
+    ESP_LOGW(TAG, "VERT RES = %d", val);
+#endif
+#endif
+
+    return val;
+#endif 
+    return 64;
+}
+
+static lv_coord_t get_display_hor_res(lv_disp_drv_t *disp_drv)
+{
+#if 0
+    lv_coord_t val = 0;
+
+#if LVGL_VERSION_MAJOR < 8
+#if defined CONFIG_LV_DISPLAY_ORIENTATION_PORTRAIT
+    val = LV_HOR_RES_MAX;
+#endif
+#else
+    /* ToDo Use display rotation API to get horizontal size */
+#if defined CONFIG_LV_DISPLAY_ORIENTATION_PORTRAIT
+    val = lv_disp_get_hor_res((lv_disp_t *) disp_drv);
+#endif
+#endif
+
+    return val;
+#endif
+    return 128;
+}
+
+static void st7565_reset(void)
+{
+	gpio_set_level(ST7565_RST, 0);
+	vTaskDelay(100 / portTICK_PERIOD_MS);
+	gpio_set_level(ST7565_RST, 1);
+	vTaskDelay(100 / portTICK_PERIOD_MS);
 }
 
 static void st7565_sync(int32_t x1, int32_t y1, int32_t x2, int32_t y2)
@@ -223,7 +287,11 @@ static void st7565_sync(int32_t x1, int32_t y1, int32_t x2, int32_t y2)
         st7565_send_cmd(ST7565_RMW);
 
         for(c = x1; c <= x2; c++) {
-            st7565_send_data(&lcd_fb[(ST7565_HOR_RES * p) + c], 1);
+            if (c != x2) {
+                st7565_send_data(&lcd_fb[(ST7565_HOR_RES * p) + c], 1);
+            } else {
+                st7565_send_color(&lcd_fb[(ST7565_HOR_RES * p) + c], 1);  // complete sending data by st7565_send_color() and thus call lv_flush_ready()
+            }
         }
     }
 }
