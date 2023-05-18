@@ -27,8 +27,13 @@ extern "C" {
 #define ST7565_DC   CONFIG_LV_DISP_PIN_DC
 #define ST7565_RST  CONFIG_LV_DISP_PIN_RST
 
-#define ST7565_HOR_RES  128 //CONFIG_LV_HOR_RES_MAX - not defined in LVGL v8
-#define ST7565_VER_RES  64  //CONFIG_LV_VER_RES_MAX - not defined in LVGL v8
+#if LVGL_VERSION_MAJOR < 8
+#define ST7565_HOR_RES_DEFAULT  CONFIG_LV_HOR_RES_MAX
+#define ST7565_VER_RES_DEFAULT  CONFIG_LV_VER_RES_MAX
+#else
+#define ST7565_HOR_RES_DEFAULT  128
+#define ST7565_VER_RES_DEFAULT  64
+#endif
 
 #define ST7565_INVERT_COLORS 0  // Don't invert display colors
 
@@ -90,9 +95,8 @@ extern "C" {
 /**********************
  * GLOBAL PROTOTYPES
  **********************/
-void st7565_init(void);
+void st7565_init(lv_disp_drv_t *drv);
 void st7565_flush(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_color_t * color_p);
-void st7565_rounder(lv_disp_drv_t * disp_drv, lv_area_t *area);
 
 void st7565_sleep_in(void);
 void st7565_sleep_out(void);

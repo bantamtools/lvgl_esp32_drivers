@@ -39,14 +39,14 @@ static void st7565_send_color(void * data, uint16_t length);
 static void st7565_reset(void);
 static void st7565_sync(int32_t x1, int32_t y1, int32_t x2, int32_t y2);
 
-static lv_coord_t get_display_ver_res(lv_disp_drv_t *disp_drv);
-static lv_coord_t get_display_hor_res(lv_disp_drv_t *disp_drv);
-
 /**********************
  *  STATIC VARIABLES
  **********************/
-static uint8_t lcd_fb[ST7565_HOR_RES * ST7565_VER_RES / 8] = {0xAA, 0xAA};
+static uint8_t lcd_fb[ST7565_HOR_RES_DEFAULT * ST7565_VER_RES_DEFAULT / 8] = {0xAA, 0xAA};
 static uint8_t pagemap[] = { 3, 2, 1, 0, 7, 6, 5, 4 };  //{ 7, 6, 5, 4, 3, 2, 1, 0 };
+
+static uint8_t st7565_hor_res = ST7565_HOR_RES_DEFAULT;
+static uint8_t st7565_ver_res = ST7565_VER_RES_DEFAULT;
 
 /**********************
  *      MACROS
@@ -56,8 +56,12 @@ static uint8_t pagemap[] = { 3, 2, 1, 0, 7, 6, 5, 4 };  //{ 7, 6, 5, 4, 3, 2, 1,
  *   GLOBAL FUNCTIONS
  **********************/
 
-void st7565_init(void)
+void st7565_init(lv_disp_drv_t *drv)
 {
+    // Record screen resolution from the driver
+    st7565_hor_res = drv->hor_res;
+    st7565_ver_res = drv->ver_res;
+
     // Set up LCD initialization structure
     lcd_init_cmd_t init_cmds[]={
 		{ST7565_SET_BIAS_7, {0}, 0x00},                 // LCD bias select
@@ -146,14 +150,14 @@ void st7565_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_m
     // Return if the area is out the screen
     if (area->x2 < 0) return;
     if (area->y2 < 0) return;
-    if (area->x1 > ST7565_HOR_RES - 1) return;
-    if (area->y1 > ST7565_VER_RES - 1) return;
+    if (area->x1 > st7565_hor_res - 1) return;
+    if (area->y1 > st7565_ver_res - 1) return;
 
     // Truncate the area to the screen
     int32_t act_x1 = area->x1 < 0 ? 0 : area->x1;
     int32_t act_y1 = area->y1 < 0 ? 0 : area->y1;
-    int32_t act_x2 = area->x2 > ST7565_HOR_RES - 1 ? ST7565_HOR_RES - 1 : area->x2;
-    int32_t act_y2 = area->y2 > ST7565_VER_RES - 1 ? ST7565_VER_RES - 1 : area->y2;
+    int32_t act_x2 = area->x2 > st7565_hor_res - 1 ? st7565_hor_res - 1 : area->x2;
+    int32_t act_y2 = area->y2 > st7565_ver_res - 1 ? st7565_ver_res - 1 : area->y2;
 
     int32_t x, y;
 
@@ -161,23 +165,15 @@ void st7565_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_m
     for(y = act_y1; y <= act_y2; y++) {
         for(x = act_x1; x <= act_x2; x++) {
             if (lv_color_to1(*color_map) != 0) {
-                lcd_fb[x + (y / 8)*ST7565_HOR_RES] &= ~(1 << (7 - (y % 8)));
+                lcd_fb[x + (y / 8)*st7565_hor_res] &= ~(1 << (7 - (y % 8)));
             } else {
-                lcd_fb[x + (y / 8)*ST7565_HOR_RES] |= (1 << (7 - (y % 8)));
+                lcd_fb[x + (y / 8)*st7565_hor_res] |= (1 << (7 - (y % 8)));
             }
             color_map++;
         }
         color_map += area->x2 - act_x2; // Next row
     }
     st7565_sync(act_x1, act_y1, act_x2, act_y2);
-}
-
-void st7565_rounder(lv_disp_drv_t * disp_drv, lv_area_t *area) {
-    // workaround: always send complete size display buffer
-    area->x1 = 0;
-    area->y1 = 0;
-    area->x2 = get_display_hor_res(disp_drv) - 1;
-    area->y2 = get_display_ver_res(disp_drv) - 1;
 }
 
 void st7565_sleep_in()
@@ -217,49 +213,6 @@ static void st7565_send_color(void * data, uint16_t length)
     disp_spi_send_colors(data, length);
 }
 
-static lv_coord_t get_display_ver_res(lv_disp_drv_t *disp_drv)
-{
-#if 0
-    lv_coord_t val = 0;
-
-#if LVGL_VERSION_MAJOR < 8
-#if defined CONFIG_LV_DISPLAY_ORIENTATION_LANDSCAPE
-    val = LV_VER_RES_MAX;
-#endif
-#else
-    /* ToDo Use display rotation API to get vertical size */
-#if defined CONFIG_LV_DISPLAY_ORIENTATION_LANDSCAPE
-    val = lv_disp_get_ver_res((lv_disp_t *) disp_drv);
-    ESP_LOGW(TAG, "VERT RES = %d", val);
-#endif
-#endif
-
-    return val;
-#endif 
-    return 64;
-}
-
-static lv_coord_t get_display_hor_res(lv_disp_drv_t *disp_drv)
-{
-#if 0
-    lv_coord_t val = 0;
-
-#if LVGL_VERSION_MAJOR < 8
-#if defined CONFIG_LV_DISPLAY_ORIENTATION_PORTRAIT
-    val = LV_HOR_RES_MAX;
-#endif
-#else
-    /* ToDo Use display rotation API to get horizontal size */
-#if defined CONFIG_LV_DISPLAY_ORIENTATION_PORTRAIT
-    val = lv_disp_get_hor_res((lv_disp_t *) disp_drv);
-#endif
-#endif
-
-    return val;
-#endif
-    return 128;
-}
-
 static void st7565_reset(void)
 {
 	gpio_set_level(ST7565_RST, 0);
@@ -281,9 +234,9 @@ static void st7565_sync(int32_t x1, int32_t y1, int32_t x2, int32_t y2)
 
         for(c = x1; c <= x2; c++) {
             if (c != x2) {
-                st7565_send_data(&lcd_fb[(ST7565_HOR_RES * p) + c], 1);
+                st7565_send_data(&lcd_fb[(st7565_hor_res * p) + c], 1);
             } else {
-                st7565_send_color(&lcd_fb[(ST7565_HOR_RES * p) + c], 1);  // complete sending data by st7565_send_color() and thus call lv_flush_ready()
+                st7565_send_color(&lcd_fb[(st7565_hor_res * p) + c], 1);  // complete sending data by st7565_send_color() and thus call lv_flush_ready()
             }
         }
     }
