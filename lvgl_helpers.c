@@ -99,10 +99,14 @@ void lvgl_interface_init(void)
     miso = TP_SPI_MISO;
 #endif
 
-    // We use DMA channel 1 for all cases
+    // We use DMA channel 1 for all cases but S3
+#if defined (CONFIG_IDF_TARGET_ESP32S3)
+    lvgl_spi_driver_init(TFT_SPI_HOST, miso, DISP_SPI_MOSI, DISP_SPI_CLK,
+        spi_max_transfer_size, SPI_DMA_CH_AUTO, DISP_SPI_IO2, DISP_SPI_IO3);
+#else
     lvgl_spi_driver_init(TFT_SPI_HOST, miso, DISP_SPI_MOSI, DISP_SPI_CLK,
         spi_max_transfer_size, 1, DISP_SPI_IO2, DISP_SPI_IO3);
-
+#endif
     disp_spi_add_device(TFT_SPI_HOST);
 
     /* Add device for touch driver */
@@ -218,7 +222,8 @@ size_t lvgl_get_display_buffer_size(void)
     defined (CONFIG_LV_TFT_DISPLAY_CONTROLLER_GC9A01)   ||  \
     defined (CONFIG_LV_TFT_DISPLAY_CONTROLLER_ILI9163C)
     disp_buffer_size = LV_HOR_RES_MAX * 40;
-#elif defined CONFIG_LV_TFT_DISPLAY_CONTROLLER_SH1107
+#elif defined (CONFIG_LV_TFT_DISPLAY_CONTROLLER_SH1107) ||  \
+      defined (CONFIG_LV_TFT_DISPLAY_CONTROLLER_ST7565)
     disp_buffer_size = LV_HOR_RES_MAX * LV_VER_RES_MAX;
 #elif defined CONFIG_LV_TFT_DISPLAY_CONTROLLER_SSD1306
 #if defined (CONFIG_LV_THEME_MONO)
@@ -241,7 +246,7 @@ size_t lvgl_get_display_buffer_size(void)
 
 #else /* LVGL v8 */
     /* ToDo: Implement display buffer size calculation with configuration values from the display driver */
-    disp_buffer_size = 320*40; // Reasonable for start
+    disp_buffer_size = 128*64; // Reasonable for start
 #endif
 
     return disp_buffer_size;
