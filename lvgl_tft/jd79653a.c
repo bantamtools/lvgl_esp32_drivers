@@ -41,8 +41,8 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR TH
 #define PIN_RST_BIT         ((1ULL << (uint8_t)(CONFIG_LV_DISP_PIN_RST)))
 #endif
 
-#define PIN_BUSY            CONFIG_LV_DISP_PIN_BUSY
-#define PIN_BUSY_BIT        ((1ULL << (uint8_t)(CONFIG_LV_DISP_PIN_BUSY)))
+#define PIN_BUSY            0//CONFIG_LV_DISP_PIN_BUSY
+#define PIN_BUSY_BIT        0//((1ULL << (uint8_t)(CONFIG_LV_DISP_PIN_BUSY)))
 #define EVT_BUSY            (1UL << 0UL)
 
 #if defined (LV_HOR_RES_MAX)
