@@ -180,13 +180,6 @@ void st7565_rounder(lv_disp_drv_t * disp_drv, lv_area_t *area) {
     area->y2 = get_display_ver_res(disp_drv) - 1;
 }
 
-void st7565_set_px_cb(lv_disp_drv_t * disp_drv, uint8_t * buf, lv_coord_t buf_w, lv_coord_t x, lv_coord_t y,
-    lv_color_t color, lv_opa_t opa) {
-
-    // Do nothing for 
-}
-
-
 void st7565_sleep_in()
 {
 	st7565_send_cmd(ST7565_DISPLAY_OFF);

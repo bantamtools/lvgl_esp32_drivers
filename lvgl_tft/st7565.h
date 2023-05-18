@@ -93,8 +93,6 @@ extern "C" {
 void st7565_init(void);
 void st7565_flush(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_color_t * color_p);
 void st7565_rounder(lv_disp_drv_t * disp_drv, lv_area_t *area);
-void st7565_set_px_cb(lv_disp_drv_t * disp_drv, uint8_t * buf, lv_coord_t buf_w, lv_coord_t x, lv_coord_t y,
-    lv_color_t color, lv_opa_t opa);
 
 void st7565_sleep_in(void);
 void st7565_sleep_out(void);
