@@ -45,9 +45,6 @@ static lv_coord_t get_display_ver_res(lv_disp_drv_t *disp_drv);
  **********************/
 static uint8_t lcd_fb[ST7565_HOR_RES_DEFAULT * ST7565_VER_RES_DEFAULT / 8] = {0xAA, 0xAA};
 
-static uint8_t st7565_hor_res = ST7565_HOR_RES_DEFAULT;
-static uint8_t st7565_ver_res = ST7565_VER_RES_DEFAULT;
-
 /**********************
  *      MACROS
  **********************/
@@ -58,17 +55,13 @@ static uint8_t st7565_ver_res = ST7565_VER_RES_DEFAULT;
 
 void st7565_init(lv_disp_drv_t *drv)
 {
-    // Record screen resolution from the driver
-    st7565_hor_res = drv->hor_res;
-    st7565_ver_res = drv->ver_res;
-
     // Set up LCD initialization structure
     lcd_init_cmd_t init_cmds[]={
 		{ST7565_INTERNAL_RESET, {0}, 0x80},             // Soft reset with delay
 		{ST7565_DISPLAY_OFF, {0}, 0x00},                // Display off
  		{ST7565_SET_DISP_NORMAL, {0}, 0x00},            // Set non-inverted mode
 		{ST7565_SET_BIAS_7, {0}, 0x00},                 // LCD bias select
-		{ST7565_SET_SEG_REVERSE, {0}, 0x00},            // SEG select
+		{ST7565_SET_SEG_NORMAL, {0}, 0x00},             // SEG select - TODO: Why is this flipped for LVGL?
 		{ST7565_SET_COM_NORMAL, {0}, 0x00},             // COM select
 		{ST7565_SET_RESISTOR_RATIO | 0x05, {0}, 0x00},  // Set lcd operating voltage (regulator resistor, ref voltage resistor); RR = 5.5
 		{ST7565_SET_VOLUME_FIRST, {0}, 0x00},     
@@ -135,51 +128,57 @@ void st7565_init(lv_disp_drv_t *drv)
 
 void st7565_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
 {
-    uint8_t c, p;
-
     // Return if the area is out the screen
-    if (area->x2 < 0) return;
-    if (area->y2 < 0) return;
-    if (area->x1 > st7565_hor_res - 1) return;
-    if (area->y1 > st7565_ver_res - 1) return;
+    //if (area->x2 < 0) return;
+    //if (area->y2 < 0) return;
+    //if (area->x1 > st7565_hor_res - 1) return;
+    //if (area->y1 > st7565_ver_res - 1) return;
 
     // Truncate the area to the screen
-    int32_t act_x1 = area->x1 < 0 ? 0 : area->x1;
-    int32_t act_y1 = area->y1 < 0 ? 0 : area->y1;
-    int32_t act_x2 = area->x2 > st7565_hor_res - 1 ? st7565_hor_res - 1 : area->x2;
-    int32_t act_y2 = area->y2 > st7565_ver_res - 1 ? st7565_ver_res - 1 : area->y2;
+    //int32_t act_x1 = area->x1 < 0 ? 0 : area->x1;
+    //int32_t act_y1 = area->y1 < 0 ? 0 : area->y1;
+    //int32_t act_x2 = area->x2 > st7565_hor_res - 1 ? st7565_hor_res - 1 : area->x2;
+    //int32_t act_y2 = area->y2 > st7565_ver_res - 1 ? st7565_ver_res - 1 : area->y2;
 
     int32_t x, y;
 
     // Refresh frame buffer
-    for(y = act_y1; y <= act_y2; y++) {
-        for(x = act_x1; x <= act_x2; x++) {
+    for(y = area->y1; y <= area->y2; y++) {
+        for(x = area->x1; x <= area->x2; x++) {
             if (lv_color_to1(*color_map) != 0) {
-                lcd_fb[x + (y / 8)*st7565_hor_res] &= ~(1 << (7 - (y % 8)));
+                lcd_fb[x + (y / 8)*get_display_hor_res(drv)] &= ~(1 << (7 - (y % 8)));
             } else {
-                lcd_fb[x + (y / 8)*st7565_hor_res] |= (1 << (7 - (y % 8)));
+                lcd_fb[x + (y / 8)*get_display_hor_res(drv)] |= (1 << (7 - (y % 8)));
             }
             color_map++;
         }
-        color_map += area->x2 - act_x2; // Next row
+        //color_map += area->x2 - area->x2; // Next row
     }
 
-    // Sync
-    for(p = act_y1 / 8; p <= act_y2 / 8; p++) {
+    uint8_t columnLow = area->x1 & 0x0F;
+	uint8_t columnHigh = (area->x1 >> 4) & 0x0F;
+    uint8_t row1 = 0, row2 = 0;
+    uint32_t size = 0;
+    void *ptr;
 
-        st7565_send_cmd(ST7565_SET_COLUMN_LOWER | (act_x1 & 0xf));
-        st7565_send_cmd(ST7565_SET_COLUMN_UPPER | ((act_x1 >> 4) & 0xf));
-        st7565_send_cmd(ST7565_SET_PAGE | (7 - p));
+    row1 = area->y1>>3;
+    row2 = area->y2>>3;
 
-       // st7565_send_cmd(ST7565_RMW);
+    for(int i = row1; i < row2+1; i++) {
 
-        for(c = act_x1; c <= act_x2; c++) {
-            if (c != act_x2) {
-                st7565_send_data(&lcd_fb[(st7565_hor_res * p) + c], 1);
-            } else {
-                st7565_send_color(&lcd_fb[(st7565_hor_res * p) + c], 1);  // complete sending data by st7565_send_color() and thus call lv_flush_ready()
-            }
-        }
+	    st7565_send_cmd(ST7565_SET_COLUMN_LOWER | columnHigh);  // Set Higher Column Start Address for Page Addressing Mode
+	    st7565_send_cmd(ST7565_SET_COLUMN_UPPER | columnLow);   // Set Lower Column Start Address for Page Addressing Mode
+	    st7565_send_cmd(ST7565_SET_PAGE | (7 - i));                   // Set Page Start Address for Page Addressing Mode
+	    size = area->y2 - area->y1 + 1;
+        ptr = color_map + i * get_display_hor_res(drv);
+        if(i != row2) {
+	        //st7565_send_data( (void *) ptr, size);
+            st7565_send_data(&lcd_fb[(get_display_hor_res(drv) * i)], size);
+	    } else {
+	        // complete sending data by sh1107_send_color() and thus call lv_flush_ready()
+	        //st7565_send_color( (void *) ptr, size);
+            st7565_send_color(&lcd_fb[(get_display_hor_res(drv) * i)], size);
+	    }
     }
 }
 
@@ -239,10 +238,10 @@ static void st7565_reset(void)
 
 static lv_coord_t get_display_ver_res(lv_disp_drv_t *disp_drv)
 {
-    return st7565_ver_res;
+    return disp_drv->ver_res;
 }
 
 static lv_coord_t get_display_hor_res(lv_disp_drv_t *disp_drv)
 {
-    return st7565_hor_res; 
+    return disp_drv->hor_res; 
 }
