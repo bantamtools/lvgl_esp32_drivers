@@ -43,7 +43,6 @@ static lv_coord_t get_display_ver_res(lv_disp_drv_t *disp_drv);
 /**********************
  *  STATIC VARIABLES
  **********************/
-static uint8_t lcd_fb[ST7565_HOR_RES_DEFAULT * ST7565_VER_RES_DEFAULT / 8] = {0xAA, 0xAA};
 
 /**********************
  *      MACROS
@@ -121,25 +120,21 @@ void st7565_init(lv_disp_drv_t *drv)
 		
         cmd++;
 	}
-
-    // Clear the local buffer
-    memset(lcd_fb, 0x00, sizeof(lcd_fb));
 }
 
 void st7565_set_px_cb(lv_disp_drv_t *drv, uint8_t *buf, lv_coord_t buf_w, lv_coord_t x, lv_coord_t y,
         lv_color_t color, lv_opa_t opa)
 {
     if (lv_color_to1(color) != 0) {
-        lcd_fb[x + (y / 8)*get_display_hor_res(drv)] &= ~(1 << (7 - (y % 8)));
+        buf[x + (y / 8) * get_display_hor_res(drv)] &= ~(1 << (7 - (y % 8)));
     } else {
-        lcd_fb[x + (y / 8)*get_display_hor_res(drv)] |= (1 << (7 - (y % 8)));
+        buf[x + (y / 8) * get_display_hor_res(drv)] |= (1 << (7 - (y % 8)));
     }
 
 }
 
 void st7565_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
 {
-    uint32_t size = 0;
     void *ptr;
 
     for(int i = (area->y1 / 8); i <= (area->y2 / 8); i++) {
@@ -147,14 +142,14 @@ void st7565_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_m
 	    st7565_send_cmd(ST7565_SET_COLUMN_LOWER | (area->x1 & 0x0F));           // Set Higher Column Start Address for Page Addressing Mode
 	    st7565_send_cmd(ST7565_SET_COLUMN_UPPER | ((area->x1 >> 4) & 0x0F));    // Set Lower Column Start Address for Page Addressing Mode
 	    st7565_send_cmd(ST7565_SET_PAGE | (7 - i));                             // Set Page Start Address for Page Addressing Mode
-	    //size = area->y2 - area->y1 + 1;
-        //ptr = color_map + i * get_display_hor_res(drv);
+        
+        ptr = color_map + i * get_display_hor_res(drv);
 
         for(int j = area->x1; j <= area->x2; j++) {
             if (i != (area->y2 / 8) || j != area->x2) {
-                st7565_send_data(&lcd_fb[(get_display_hor_res(drv) * i) + j], 1);
+                st7565_send_data(ptr + j, 1);
             } else {
-                st7565_send_color(&lcd_fb[(get_display_hor_res(drv) * i) + j], 1);  // Complete sending data by st7565_send_color() and thus call lv_flush_ready()
+                st7565_send_color(ptr + j, 1);  // Complete sending data by st7565_send_color() and thus call lv_flush_ready()
             }
         }
     }
