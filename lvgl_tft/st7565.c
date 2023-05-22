@@ -37,13 +37,13 @@ static void st7565_send_cmd(uint8_t cmd);
 static void st7565_send_data(void * data, uint16_t length);
 static void st7565_send_color(void * data, uint16_t length);
 static void st7565_reset(void);
-static void st7565_sync(int32_t x1, int32_t y1, int32_t x2, int32_t y2);
+static lv_coord_t get_display_hor_res(lv_disp_drv_t *disp_drv);
+static lv_coord_t get_display_ver_res(lv_disp_drv_t *disp_drv);
 
 /**********************
  *  STATIC VARIABLES
  **********************/
 static uint8_t lcd_fb[ST7565_HOR_RES_DEFAULT * ST7565_VER_RES_DEFAULT / 8] = {0xAA, 0xAA};
-static uint8_t pagemap[] = { 3, 2, 1, 0, 7, 6, 5, 4 };  //{ 7, 6, 5, 4, 3, 2, 1, 0 };
 
 static uint8_t st7565_hor_res = ST7565_HOR_RES_DEFAULT;
 static uint8_t st7565_ver_res = ST7565_VER_RES_DEFAULT;
@@ -64,29 +64,17 @@ void st7565_init(lv_disp_drv_t *drv)
 
     // Set up LCD initialization structure
     lcd_init_cmd_t init_cmds[]={
-		{ST7565_SET_BIAS_7, {0}, 0x00},                 // LCD bias select
-		{ST7565_SET_SEG_NORMAL, {0}, 0x00},             // SEG select
-		{ST7565_SET_COM_NORMAL, {0}, 0x00},             // COM select
-		{ST7565_SET_DISP_START_LINE | 0x20, {0}, 0x00}, // Initial display line, screen starts halfway down
-#if ST7565_INVERT_COLORS == 1
-		{ST7565_SET_DISP_INVERSE, {0}, 0x00},           // Set inverted mode
-#else
+		{ST7565_INTERNAL_RESET, {0}, 0x80},             // Soft reset with delay
+		{ST7565_DISPLAY_OFF, {0}, 0x00},                // Display off
  		{ST7565_SET_DISP_NORMAL, {0}, 0x00},            // Set non-inverted mode
-#endif
-		{ST7565_SET_POWER_CONTROL | 0x04, {0}, 0x80},   // Turn on voltage converter (VC=1, VR=0, VF=0)     
-		{ST7565_SET_POWER_CONTROL | 0x06, {0}, 0x80},   // Turn on voltage regulator (VC=1, VR=1, VF=0)
-		{ST7565_SET_POWER_CONTROL | 0x07, {0}, 0x80},   // Turn on voltage follower (VC=1, VR=1, VF=1)
-#if ST7565_INVERT_COLORS == 1
-		{ST7565_SET_RESISTOR_RATIO | 0x06, {0}, 0x00},  // Set lcd operating voltage (regulator resistor, ref voltage resistor); RR = 6.0
-		{ST7565_SET_VOLUME_FIRST, {0}, 0x00},     
-		{ST7565_SET_VOLUME_SECOND | 0x18, {0}, 0x00},   // Set the contrast; EV = 24 = 0x18
-#else
+		{ST7565_SET_BIAS_7, {0}, 0x00},                 // LCD bias select
+		{ST7565_SET_SEG_REVERSE, {0}, 0x00},            // SEG select
+		{ST7565_SET_COM_NORMAL, {0}, 0x00},             // COM select
 		{ST7565_SET_RESISTOR_RATIO | 0x05, {0}, 0x00},  // Set lcd operating voltage (regulator resistor, ref voltage resistor); RR = 5.5
 		{ST7565_SET_VOLUME_FIRST, {0}, 0x00},     
 		{ST7565_SET_VOLUME_SECOND | 0x17, {0}, 0x00},   // Set the contrast; EV = 23 = 0x17
-#endif
-		{ST7565_DISPLAY_ON, {0x00}, 0x00},              // Turn on display   
-		{ST7565_SET_ALLPTS_NORMAL, {0}, 0x00},          // Reset all pixels  
+		{ST7565_SET_POWER_CONTROL | 0x07, {0}, 0x00},   // Turn on voltage convert, regulator and follower (VC=1, VR=1, VF=1)
+		{ST7565_DISPLAY_ON, {0x00}, 0x00},              // Turn on display  
 		{0, {0}, 0xff}
     };
 
@@ -147,6 +135,8 @@ void st7565_init(lv_disp_drv_t *drv)
 
 void st7565_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
 {
+    uint8_t c, p;
+
     // Return if the area is out the screen
     if (area->x2 < 0) return;
     if (area->y2 < 0) return;
@@ -173,7 +163,33 @@ void st7565_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_m
         }
         color_map += area->x2 - act_x2; // Next row
     }
-    st7565_sync(act_x1, act_y1, act_x2, act_y2);
+
+    // Sync
+    for(p = act_y1 / 8; p <= act_y2 / 8; p++) {
+
+        st7565_send_cmd(ST7565_SET_COLUMN_LOWER | (act_x1 & 0xf));
+        st7565_send_cmd(ST7565_SET_COLUMN_UPPER | ((act_x1 >> 4) & 0xf));
+        st7565_send_cmd(ST7565_SET_PAGE | (7 - p));
+
+       // st7565_send_cmd(ST7565_RMW);
+
+        for(c = act_x1; c <= act_x2; c++) {
+            if (c != act_x2) {
+                st7565_send_data(&lcd_fb[(st7565_hor_res * p) + c], 1);
+            } else {
+                st7565_send_color(&lcd_fb[(st7565_hor_res * p) + c], 1);  // complete sending data by st7565_send_color() and thus call lv_flush_ready()
+            }
+        }
+    }
+}
+
+void st7565_rounder(lv_disp_drv_t * disp_drv, lv_area_t *area)
+{
+    // workaround: always send complete size display buffer
+    area->x1 = 0;
+    area->y1 = 0;
+    area->x2 = get_display_hor_res(disp_drv) - 1;
+    area->y2 = get_display_ver_res(disp_drv) - 1;
 }
 
 void st7565_sleep_in()
@@ -221,23 +237,12 @@ static void st7565_reset(void)
 	vTaskDelay(100 / portTICK_PERIOD_MS);
 }
 
-static void st7565_sync(int32_t x1, int32_t y1, int32_t x2, int32_t y2)
+static lv_coord_t get_display_ver_res(lv_disp_drv_t *disp_drv)
 {
-    uint8_t c, p;
+    return st7565_ver_res;
+}
 
-    for(p = y1 / 8; p <= y2 / 8; p++) {
-
-        st7565_send_cmd(ST7565_SET_PAGE | pagemap[p]);
-        st7565_send_cmd(ST7565_SET_COLUMN_LOWER | ((x1 + DISP_COL_OFFSET) & 0xf));
-        st7565_send_cmd(ST7565_SET_COLUMN_UPPER | (((x1 + DISP_COL_OFFSET) >> 4) & 0xf));
-        st7565_send_cmd(ST7565_RMW);
-
-        for(c = x1; c <= x2; c++) {
-            if (c != x2) {
-                st7565_send_data(&lcd_fb[(st7565_hor_res * p) + c], 1);
-            } else {
-                st7565_send_color(&lcd_fb[(st7565_hor_res * p) + c], 1);  // complete sending data by st7565_send_color() and thus call lv_flush_ready()
-            }
-        }
-    }
+static lv_coord_t get_display_hor_res(lv_disp_drv_t *disp_drv)
+{
+    return st7565_hor_res; 
 }

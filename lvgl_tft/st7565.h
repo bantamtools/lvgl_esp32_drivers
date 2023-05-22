@@ -75,8 +75,6 @@ extern "C" {
 #define ST7565_TEST                   0xF0
 
 //TEMP
-#define DISP_COL_OFFSET                 0x4 // Shift start of columns by this amount
-
 #define DISP_BL_PWM_PIN     34
 
 #define DISP_BL_LEDC_TIMER              LEDC_TIMER_0
@@ -96,7 +94,10 @@ extern "C" {
  * GLOBAL PROTOTYPES
  **********************/
 void st7565_init(lv_disp_drv_t *drv);
+void st7565_set_px_cb(lv_disp_drv_t * disp_drv, uint8_t * buf, lv_coord_t buf_w, lv_coord_t x, lv_coord_t y,
+        lv_color_t color, lv_opa_t opa);
 void st7565_flush(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_color_t * color_p);
+void st7565_rounder(lv_disp_drv_t * disp_drv, lv_area_t *area);
 
 void st7565_sleep_in(void);
 void st7565_sleep_out(void);
