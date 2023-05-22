@@ -126,35 +126,19 @@ void st7565_init(lv_disp_drv_t *drv)
     memset(lcd_fb, 0x00, sizeof(lcd_fb));
 }
 
-void st7565_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
+void st7565_set_px_cb(lv_disp_drv_t *drv, uint8_t *buf, lv_coord_t buf_w, lv_coord_t x, lv_coord_t y,
+        lv_color_t color, lv_opa_t opa)
 {
-    // Return if the area is out the screen
-    //if (area->x2 < 0) return;
-    //if (area->y2 < 0) return;
-    //if (area->x1 > st7565_hor_res - 1) return;
-    //if (area->y1 > st7565_ver_res - 1) return;
-
-    // Truncate the area to the screen
-    //int32_t act_x1 = area->x1 < 0 ? 0 : area->x1;
-    //int32_t act_y1 = area->y1 < 0 ? 0 : area->y1;
-    //int32_t act_x2 = area->x2 > st7565_hor_res - 1 ? st7565_hor_res - 1 : area->x2;
-    //int32_t act_y2 = area->y2 > st7565_ver_res - 1 ? st7565_ver_res - 1 : area->y2;
-
-    int32_t x, y;
-
-    // Refresh frame buffer
-    for(y = area->y1; y <= area->y2; y++) {
-        for(x = area->x1; x <= area->x2; x++) {
-            if (lv_color_to1(*color_map) != 0) {
-                lcd_fb[x + (y / 8)*get_display_hor_res(drv)] &= ~(1 << (7 - (y % 8)));
-            } else {
-                lcd_fb[x + (y / 8)*get_display_hor_res(drv)] |= (1 << (7 - (y % 8)));
-            }
-            color_map++;
-        }
-        //color_map += area->x2 - area->x2; // Next row
+    if (lv_color_to1(color) != 0) {
+        lcd_fb[x + (y / 8)*get_display_hor_res(drv)] &= ~(1 << (7 - (y % 8)));
+    } else {
+        lcd_fb[x + (y / 8)*get_display_hor_res(drv)] |= (1 << (7 - (y % 8)));
     }
 
+}
+
+void st7565_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
+{
     uint8_t columnLow = area->x1 & 0x0F;
 	uint8_t columnHigh = (area->x1 >> 4) & 0x0F;
     uint8_t row1 = 0, row2 = 0;
