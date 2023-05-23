@@ -60,13 +60,23 @@ void st7565_init(lv_disp_drv_t *drv)
     lcd_init_cmd_t init_cmds[]={
 		{ST7565_INTERNAL_RESET, {0}, 0x80},             // Soft reset with delay
 		{ST7565_DISPLAY_OFF, {0}, 0x00},                // Display off
+#if defined (CONFIG_LV_DISPLAY_ORIENTATION_PORTRAIT_INVERTED) || defined (CONFIG_LV_DISPLAY_ORIENTATION_LANDSCAPE_INVERTED)
+ 		{ST7565_SET_DISP_INVERSE, {0}, 0x00},           // Set inverted mode
+#else
  		{ST7565_SET_DISP_NORMAL, {0}, 0x00},            // Set non-inverted mode
+#endif
 		{ST7565_SET_BIAS_7, {0}, 0x00},                 // LCD bias select
 		{ST7565_SET_SEG_NORMAL, {0}, 0x00},             // SEG select - TODO: Why is SEG/COM flipped for LVGL?
 		{ST7565_SET_COM_REVERSE, {0}, 0x00},            // COM select
+#if defined (CONFIG_LV_DISPLAY_ORIENTATION_PORTRAIT_INVERTED) || defined (CONFIG_LV_DISPLAY_ORIENTATION_LANDSCAPE_INVERTED)
+		{ST7565_SET_RESISTOR_RATIO | 0x06, {0}, 0x00},  // Set lcd operating voltage (regulator resistor, ref voltage resistor); RR = 6.0
+		{ST7565_SET_VOLUME_FIRST, {0}, 0x00},     
+		{ST7565_SET_VOLUME_SECOND | 0x18, {0}, 0x00},   // Set the contrast; EV = 24 = 0x18
+#else
 		{ST7565_SET_RESISTOR_RATIO | 0x05, {0}, 0x00},  // Set lcd operating voltage (regulator resistor, ref voltage resistor); RR = 5.5
 		{ST7565_SET_VOLUME_FIRST, {0}, 0x00},     
 		{ST7565_SET_VOLUME_SECOND | 0x17, {0}, 0x00},   // Set the contrast; EV = 23 = 0x17
+#endif
 		{ST7565_SET_POWER_CONTROL | 0x07, {0}, 0x00},   // Turn on voltage convert, regulator and follower (VC=1, VR=1, VF=1)
 		{ST7565_DISPLAY_ON, {0x00}, 0x00},              // Turn on display  
 		{0, {0}, 0xff}
@@ -130,10 +140,10 @@ void st7565_set_px_cb(lv_disp_drv_t *drv, uint8_t *buf, lv_coord_t buf_w, lv_coo
     uint16_t byte_index = 0;
     uint8_t  bit_index = 0;
 
-#if defined CONFIG_LV_DISPLAY_ORIENTATION_LANDSCAPE
+#if defined (CONFIG_LV_DISPLAY_ORIENTATION_LANDSCAPE) || defined (CONFIG_LV_DISPLAY_ORIENTATION_LANDSCAPE_INVERTED)
 	byte_index = y + (( x>>3 ) * get_display_ver_res(drv));
 	bit_index  = x & 0x7;
-#elif defined CONFIG_LV_DISPLAY_ORIENTATION_PORTRAIT
+#else
     byte_index = x + (( y>>3 ) * get_display_hor_res(drv));
     bit_index  = y & 0x7;
 #endif
@@ -152,7 +162,7 @@ void st7565_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_m
     uint8_t row1 = 0, row2 = 0, col1 = 0, col2 = 0;
     void *ptr;
 
-#if defined CONFIG_LV_DISPLAY_ORIENTATION_LANDSCAPE
+#if defined (CONFIG_LV_DISPLAY_ORIENTATION_LANDSCAPE) || defined (CONFIG_LV_DISPLAY_ORIENTATION_LANDSCAPE_INVERTED)
     row1 = area->x1 >> 3;
     row2 = area->x2 >> 3;
     col1 = area->y1;
@@ -170,7 +180,7 @@ void st7565_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_m
 	    st7565_send_cmd(ST7565_SET_COLUMN_UPPER | columnHigh);  // Set Lower Column Start Address for Page Addressing Mode
 	    st7565_send_cmd(ST7565_SET_PAGE | i);                   // Set Page Start Address for Page Addressing Mode
         
-#if defined CONFIG_LV_DISPLAY_ORIENTATION_LANDSCAPE
+#if defined (CONFIG_LV_DISPLAY_ORIENTATION_LANDSCAPE) || defined (CONFIG_LV_DISPLAY_ORIENTATION_LANDSCAPE_INVERTED)
         ptr = color_map + i * get_display_ver_res(drv);
 #else
         ptr = color_map + i * get_display_hor_res(drv);
