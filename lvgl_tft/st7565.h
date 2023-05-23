@@ -35,7 +35,7 @@ extern "C" {
 #define ST7565_VER_RES_DEFAULT  64
 #endif
 
-#define ST7565_INVERT_COLORS 0  // Don't invert display colors
+#define ST7565_COL_OFFSET       0x4 // Column offset to shift display (needed for SEG/COM reversed)
 
 // ST7565 specific commands used in init
 #define ST7565_DISPLAY_OFF            0xAE

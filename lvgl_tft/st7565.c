@@ -139,9 +139,9 @@ void st7565_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_m
 
     for(int i = (area->y1 / 8); i <= (area->y2 / 8); i++) {
 
-	    st7565_send_cmd(ST7565_SET_COLUMN_LOWER | (area->x1 & 0x0F));           // Set Higher Column Start Address for Page Addressing Mode
-	    st7565_send_cmd(ST7565_SET_COLUMN_UPPER | ((area->x1 >> 4) & 0x0F));    // Set Lower Column Start Address for Page Addressing Mode
-	    st7565_send_cmd(ST7565_SET_PAGE | (7 - i));                             // Set Page Start Address for Page Addressing Mode
+	    st7565_send_cmd(ST7565_SET_COLUMN_LOWER | ((area->x1 + ST7565_COL_OFFSET) & 0x0F));         // Set Higher Column Start Address for Page Addressing Mode
+	    st7565_send_cmd(ST7565_SET_COLUMN_UPPER | (((area->x1 + ST7565_COL_OFFSET) >> 4) & 0x0F));  // Set Lower Column Start Address for Page Addressing Mode
+	    st7565_send_cmd(ST7565_SET_PAGE | (7 - i));                                                 // Set Page Start Address for Page Addressing Mode
         
         ptr = color_map + i * get_display_hor_res(drv);
 
