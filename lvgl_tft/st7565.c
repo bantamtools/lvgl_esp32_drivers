@@ -47,6 +47,8 @@ static lv_coord_t get_display_ver_res(lv_disp_drv_t *disp_drv);
 /**********************
  *      MACROS
  **********************/
+#define BIT_SET(a,b) ((a) |= (1U<<(b)))
+#define BIT_CLEAR(a,b) ((a) &= ~(1U<<(b)))
 
 /**********************
  *   GLOBAL FUNCTIONS
@@ -60,8 +62,8 @@ void st7565_init(lv_disp_drv_t *drv)
 		{ST7565_DISPLAY_OFF, {0}, 0x00},                // Display off
  		{ST7565_SET_DISP_NORMAL, {0}, 0x00},            // Set non-inverted mode
 		{ST7565_SET_BIAS_7, {0}, 0x00},                 // LCD bias select
-		{ST7565_SET_SEG_NORMAL, {0}, 0x00},             // SEG select - TODO: Why is this flipped for LVGL?
-		{ST7565_SET_COM_NORMAL, {0}, 0x00},             // COM select
+		{ST7565_SET_SEG_NORMAL, {0}, 0x00},             // SEG select - TODO: Why is SEG/COM flipped for LVGL?
+		{ST7565_SET_COM_REVERSE, {0}, 0x00},            // COM select
 		{ST7565_SET_RESISTOR_RATIO | 0x05, {0}, 0x00},  // Set lcd operating voltage (regulator resistor, ref voltage resistor); RR = 5.5
 		{ST7565_SET_VOLUME_FIRST, {0}, 0x00},     
 		{ST7565_SET_VOLUME_SECOND | 0x17, {0}, 0x00},   // Set the contrast; EV = 23 = 0x17
@@ -125,12 +127,22 @@ void st7565_init(lv_disp_drv_t *drv)
 void st7565_set_px_cb(lv_disp_drv_t *drv, uint8_t *buf, lv_coord_t buf_w, lv_coord_t x, lv_coord_t y,
         lv_color_t color, lv_opa_t opa)
 {
-    if (lv_color_to1(color) != 0) {
-        buf[x + (y / 8) * get_display_hor_res(drv)] &= ~(1 << (7 - (y % 8)));
-    } else {
-        buf[x + (y / 8) * get_display_hor_res(drv)] |= (1 << (7 - (y % 8)));
-    }
+    uint16_t byte_index = 0;
+    uint8_t  bit_index = 0;
 
+#if defined CONFIG_LV_DISPLAY_ORIENTATION_LANDSCAPE
+	byte_index = y + (( x>>3 ) * get_display_ver_res(drv));
+	bit_index  = x & 0x7;
+#elif defined CONFIG_LV_DISPLAY_ORIENTATION_PORTRAIT
+    byte_index = x + (( y>>3 ) * get_display_hor_res(drv));
+    bit_index  = y & 0x7;
+#endif
+
+    if ((color.full == 0) && (LV_OPA_TRANSP != opa)) {
+        BIT_SET(buf[byte_index], bit_index);
+    } else {
+        BIT_CLEAR(buf[byte_index], bit_index);
+    }
 }
 
 void st7565_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
@@ -141,7 +153,7 @@ void st7565_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_m
 
 	    st7565_send_cmd(ST7565_SET_COLUMN_LOWER | ((area->x1 + ST7565_COL_OFFSET) & 0x0F));         // Set Higher Column Start Address for Page Addressing Mode
 	    st7565_send_cmd(ST7565_SET_COLUMN_UPPER | (((area->x1 + ST7565_COL_OFFSET) >> 4) & 0x0F));  // Set Lower Column Start Address for Page Addressing Mode
-	    st7565_send_cmd(ST7565_SET_PAGE | (7 - i));                                                 // Set Page Start Address for Page Addressing Mode
+	    st7565_send_cmd(ST7565_SET_PAGE | i);                                                 // Set Page Start Address for Page Addressing Mode
         
         ptr = color_map + i * get_display_hor_res(drv);
 
