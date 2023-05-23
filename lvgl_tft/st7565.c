@@ -147,18 +147,37 @@ void st7565_set_px_cb(lv_disp_drv_t *drv, uint8_t *buf, lv_coord_t buf_w, lv_coo
 
 void st7565_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
 {
+    uint8_t columnLow = (area->x1 + ST7565_COL_OFFSET) & 0x0F;
+	uint8_t columnHigh = ((area->x1 + ST7565_COL_OFFSET) >> 4) & 0x0F;
+    uint8_t row1 = 0, row2 = 0, col1 = 0, col2 = 0;
     void *ptr;
 
-    for(int i = (area->y1 / 8); i <= (area->y2 / 8); i++) {
+#if defined CONFIG_LV_DISPLAY_ORIENTATION_LANDSCAPE
+    row1 = area->x1 >> 3;
+    row2 = area->x2 >> 3;
+    col1 = area->y1;
+    col2 = area->y2;
+#else
+    row1 = area->y1 >> 3;
+    row2 = area->y2 >> 3;
+    col1 = area->x1;
+    col2 = area->x2;
+#endif
 
-	    st7565_send_cmd(ST7565_SET_COLUMN_LOWER | ((area->x1 + ST7565_COL_OFFSET) & 0x0F));         // Set Higher Column Start Address for Page Addressing Mode
-	    st7565_send_cmd(ST7565_SET_COLUMN_UPPER | (((area->x1 + ST7565_COL_OFFSET) >> 4) & 0x0F));  // Set Lower Column Start Address for Page Addressing Mode
-	    st7565_send_cmd(ST7565_SET_PAGE | i);                                                 // Set Page Start Address for Page Addressing Mode
+    for(int i = row1; i < (row2 + 1); i++) {
+
+	    st7565_send_cmd(ST7565_SET_COLUMN_LOWER | columnLow);   // Set Higher Column Start Address for Page Addressing Mode
+	    st7565_send_cmd(ST7565_SET_COLUMN_UPPER | columnHigh);  // Set Lower Column Start Address for Page Addressing Mode
+	    st7565_send_cmd(ST7565_SET_PAGE | i);                   // Set Page Start Address for Page Addressing Mode
         
+#if defined CONFIG_LV_DISPLAY_ORIENTATION_LANDSCAPE
+        ptr = color_map + i * get_display_ver_res(drv);
+#else
         ptr = color_map + i * get_display_hor_res(drv);
+#endif
 
-        for(int j = area->x1; j <= area->x2; j++) {
-            if (i != (area->y2 / 8) || j != area->x2) {
+        for(int j = col1; j < (col2 + 1); j++) {
+            if (i != row2 || j != col2) {
                 st7565_send_data(ptr + j, 1);
             } else {
                 st7565_send_color(ptr + j, 1);  // Complete sending data by st7565_send_color() and thus call lv_flush_ready()
