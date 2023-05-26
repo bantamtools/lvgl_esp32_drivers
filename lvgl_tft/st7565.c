@@ -82,27 +82,6 @@ void st7565_init(lv_disp_drv_t *drv)
 		{0, {0}, 0xff}
     };
 
-    // Apply the backlight LEDC PWM timer/channel configuration, turn backlight on
-    ledc_timer_config_t disp_bl_timer = {
-        .speed_mode       = DISP_BL_LEDC_MODE,
-        .timer_num        = DISP_BL_LEDC_TIMER,
-        .duty_resolution  = DISP_BL_LEDC_DUTY_RES,
-        .freq_hz          = DISP_BL_LEDC_FREQUENCY,
-        .clk_cfg          = LEDC_AUTO_CLK
-    };
-    ESP_ERROR_CHECK(ledc_timer_config(&disp_bl_timer));
-
-    ledc_channel_config_t disp_bl_channel = {
-        .speed_mode     = DISP_BL_LEDC_MODE,
-        .channel        = DISP_BL_LEDC_CHANNEL,
-        .timer_sel      = DISP_BL_LEDC_TIMER,
-        .intr_type      = LEDC_INTR_DISABLE,
-        .gpio_num       = DISP_BL_PWM_PIN,
-        .duty           = DUTY_TO_LEDC_VALUE(100), // TEMP: Make it 100%
-        .hpoint         = 0
-    };
-    ESP_ERROR_CHECK(ledc_channel_config(&disp_bl_channel));
-
 	// Initialize non-SPI GPIOs
     gpio_reset_pin(ST7565_DC);
 	gpio_set_direction(ST7565_DC, GPIO_MODE_OUTPUT);

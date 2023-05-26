@@ -74,18 +74,6 @@ extern "C" {
 #define ST7565_NOP                    0xE3
 #define ST7565_TEST                   0xF0
 
-//TEMP
-#define DISP_BL_PWM_PIN     34
-
-#define DISP_BL_LEDC_TIMER              LEDC_TIMER_0
-#define DISP_BL_LEDC_MODE               LEDC_LOW_SPEED_MODE
-#define DISP_BL_LEDC_CHANNEL            LEDC_CHANNEL_0
-#define DISP_BL_LEDC_DUTY_RES           LEDC_TIMER_11_BIT // Set duty resolution to 11 bits
-#define DISP_BL_LEDC_FREQUENCY          25000   // Frequency in Hertz. Set frequency at 25 kHz
-
-#define DUTY_TO_LEDC_VALUE(x)           (((2048 - 1) * x) / 100) // Converts duty cycle to LEDC duty value
-//TEMP
-
 /**********************
  *      TYPEDEFS
  **********************/
